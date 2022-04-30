@@ -91,8 +91,10 @@ namespace TSApi.Engine.Middlewares
 
             if (!db.TryGetValue(dbKeyOrLogin, out TorInfo info))
             {
-                string inDir = "/opt/TSApi";
+                string inDir = Environment.CurrentDirectory;
                 string torPath = userData.torPath ?? "master";
+                string[] torFile = Directory.GetFiles($"{inDir}/dl/{torPath}", "TorrServer-*");
+                string torName = Path.GetFileName(torFile[0]);
 
                 #region TorInfo
                 info = new TorInfo()
@@ -114,29 +116,48 @@ namespace TSApi.Engine.Middlewares
                 #endregion
 
                 #region Запускаем TorrServer
-                info.thread = new Thread(() =>
+                string windir = Environment.GetEnvironmentVariable("windir");
+                if (!string.IsNullOrEmpty(windir) && windir.Contains(@"\") && Directory.Exists(windir))
                 {
-                    try
+                    Process iStartProcess = new Process();
+                    iStartProcess.StartInfo.FileName = @$"{inDir}\dl\{torPath}\{torName}";
+                    if (!userData.IsShared)
                     {
-                        // https://github.com/YouROK/TorrServer
-                        string comand = $"{inDir}/dl/{torPath}/TorrServer -p {info.port} -d {inDir}/sandbox/{info.user.login} >/dev/null 2>&1";
-
-                        if (userData.IsShared)
-                            comand = $"{inDir}/dl/{torPath}/TorrServer -p {info.port} -r >/dev/null 2>&1";
-
-                        var processInfo = new ProcessStartInfo();
-                        processInfo.FileName = "/bin/bash";
-                        processInfo.Arguments = $" -c \"{comand}\"";
-
-                        info.process = Process.Start(processInfo);
-                        info.process.WaitForExit();
+                        iStartProcess.StartInfo.Arguments = $" -p {info.port} -d {inDir}\\sandbox\\{info.user.login}";
                     }
-                    catch { }
+                    else
+                    {
+                        iStartProcess.StartInfo.Arguments = @$" -p {info.port} -r";
+                    }
+                    iStartProcess.StartInfo.WindowStyle = ProcessWindowStyle.Hidden;
+                    iStartProcess.Start();
+                }
+                else if (File.Exists(@"/proc/sys/kernel/ostype"))
+                {
+                    info.thread = new Thread(() =>
+                    {
+                        try
+                        {
+                            // https://github.com/YouROK/TorrServer
+                            string comand = $"{inDir}/dl/{torPath}/{torName} -p {info.port} -d {inDir}/sandbox/{info.user.login} >/dev/null 2>&1";
 
-                    info.OnProcessForExit();
-                });
+                            if (userData.IsShared)
+                                comand = $"{inDir}/dl/{torPath}/{torName} -p {info.port} -r >/dev/null 2>&1";
 
-                info.thread.Start();
+                            var processInfo = new ProcessStartInfo();
+                            processInfo.FileName = "/bin/bash";
+                            processInfo.Arguments = $" -c \"{comand}\"";
+
+                            info.process = Process.Start(processInfo);
+                            info.process.WaitForExit();
+                        }
+                        catch { }
+
+                        info.OnProcessForExit();
+                    });
+
+                    info.thread.Start();
+                }
                 #endregion
 
                 #region Проверяем доступность сервера
