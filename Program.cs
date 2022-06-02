@@ -15,7 +15,7 @@ namespace TSApi
             Host.CreateDefaultBuilder(args)
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
-                    webBuilder.UseKestrel(op => op.Listen(IPAddress.Any, 80));
+                    webBuilder.UseKestrel(op => op.Listen(IPAddress.Any, 8090));
                     webBuilder.UseStartup<Startup>();
                 });
     }
